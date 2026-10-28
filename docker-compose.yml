@@ -1,0 +1,89 @@
+# Everything this system needs, on one Linux machine with Bluetooth.
+# Before the first start: cp .env.example .env and fill it in (see INSTALL.md).
+#
+#   docker compose up -d        start / update
+#   docker compose logs -f appdaemon
+#
+# Already running Home Assistant, MQTT or TeslaMate elsewhere? Delete those
+# services below and point the config at your existing ones instead.
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    network_mode: host                 # web UI on http://<this machine>:8123
+    volumes:
+      - ./data/homeassistant:/config
+      - ./homeassistant/packages:/config/packages:ro
+    environment:
+      TZ: ${TZ}
+    restart: unless-stopped
+
+  mosquitto:                           # MQTT: TeslaMate -> Home Assistant
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./data/mosquitto:/mosquitto/data
+    restart: unless-stopped
+
+  teslamate:                           # car telemetry (battery, charging state, current)
+    image: teslamate/teslamate:latest
+    container_name: teslamate
+    environment:
+      ENCRYPTION_KEY: ${TESLAMATE_ENCRYPTION_KEY}
+      DATABASE_USER: teslamate
+      DATABASE_PASS: ${POSTGRES_PASSWORD}
+      DATABASE_NAME: teslamate
+      DATABASE_HOST: database
+      MQTT_HOST: mosquitto
+      TZ: ${TZ}
+    ports:
+      - "4000:4000"                    # web UI on http://<this machine>:4000
+    depends_on:
+      - database
+      - mosquitto
+    cap_drop:
+      - all
+    restart: unless-stopped
+
+  database:
+    image: postgres:17
+    container_name: teslamate-db
+    environment:
+      POSTGRES_USER: teslamate
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: teslamate
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  tesla-ble-http-proxy:                # sends commands to the cars over Bluetooth
+    image: wimaha/tesla-ble-http-proxy:latest
+    container_name: tesla-ble-http-proxy
+    network_mode: host                 # web UI on http://<this machine>:8080
+    privileged: true                   # needs the host Bluetooth adapter
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    volumes:
+      - ./data/tesla-ble-key:/key
+      - /var/run/dbus:/var/run/dbus
+    environment:
+      httpListenAddress: :8080
+    restart: unless-stopped
+
+  appdaemon:                           # runs the charge control apps
+    image: acockburn/appdaemon:latest
+    container_name: appdaemon
+    volumes:
+      - ./appdaemon:/conf
+    environment:
+      TZ: ${TZ}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach HA and the BLE proxy on the host
+    depends_on:
+      - homeassistant
+    restart: unless-stopped

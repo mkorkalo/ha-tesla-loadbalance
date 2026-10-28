@@ -1,0 +1,14 @@
+# Personal configuration (created from the examples, never committed)
+.env
+appdaemon/secrets.yaml
+appdaemon/apps/apps.yaml
+homeassistant/packages/*.yaml
+
+# Runtime data and logs
+data/
+appdaemon/*.log*
+appdaemon/namespaces/
+appdaemon/www/
+appdaemon/compiled/
+__pycache__/
+.pytest_cache/

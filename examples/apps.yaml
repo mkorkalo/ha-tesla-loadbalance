@@ -1,0 +1,54 @@
+# Copy to appdaemon/apps/apps.yaml and edit. That copy is never committed.
+#
+# One entry per car under `cars:`. The key (model3, modely) is just a label.
+#   vin             the car's VIN (Tesla app -> car -> Software, or the windshield)
+#   prefix          short lowercase name; must match the names in the Home
+#                   Assistant package (sensor.<prefix>_battery_level etc.)
+#   teslamate_id    the car's number in TeslaMate (1 = first car you added)
+#   soc_per_hour_16a  battery % gained per hour at 16 A 3-phase (~11 kW).
+#                   Roughly 1100 / usable battery kWh: Model 3 SR ~20,
+#                   Model 3 LR / Model Y LR ~15. Only used for scheduling.
+#
+# One car works too: just delete the second entry.
+
+charge_amps_limit:
+  module: charge_amps_limit
+  class: ChargeAmpsLimit
+  ble_proxy_url: &ble http://host.docker.internal:8080
+  # The three phase-current sensors of your main energy meter (L1, L2, L3).
+  # They must update at least every few seconds.
+  phase_current_sensors:
+    - sensor.house_phase_a_current
+    - sensor.house_phase_b_current
+    - sensor.house_phase_c_current
+  # Defaults, shown for reference -- they match the Home Assistant package:
+  # house_limit_entity: input_number.ev_house_max_current
+  # shared_max_entity: input_number.ev_shared_max_current
+  # allocation_sensor: sensor.ev_charge_allocation
+  cars: &fleet
+    model3:
+      vin: "5YJ3XXXXXXXXXXXXX"
+      prefix: model3
+      teslamate_id: 1
+      soc_per_hour_16a: 15.0
+    modely:
+      vin: "7SAYXXXXXXXXXXXXX"
+      prefix: modely
+      teslamate_id: 2
+      soc_per_hour_16a: 14.0
+
+charge_timing:
+  module: charge_timing
+  class: ChargeTiming
+  cars: *fleet
+  ble_proxy_url: *ble
+  teslamate_url: http://teslamate:4000
+  # Spot price area on spot-hinta.fi: FI, EE, LV, LT, SE1-SE4, NO1-NO5, DK1, DK2
+  price_region: FI
+  # What you pay on top of the spot price, EUR/kWh incl. VAT (grid transfer,
+  # electricity tax, retailer margin). Only affects the cost estimate shown.
+  price_adders_eur_kwh: 0.065
+  schedule_time: "22:55:00"      # when tonight's plan is made
+  ready_by_hour_weekday: 7       # cars done charging by 07:00 Mon-Fri
+  ready_by_hour_weekend: 8
+  fallback_start_hour: 23        # used if prices cannot be fetched

@@ -1,0 +1,23 @@
+# AppDaemon main config. Personal values live in secrets.yaml (not committed);
+# create it from secrets.example.yaml.
+appdaemon:
+  latitude: !secret latitude
+  longitude: !secret longitude
+  elevation: 10
+  time_zone: !secret time_zone
+  plugins:
+    HASS:
+      type: hass
+      ha_url: http://host.docker.internal:8123
+      token: !secret ha_token
+      appdaemon_startup_conditions:
+        delay: 5
+http:
+  url: http://0.0.0.0:5050
+admin:
+api:
+logs:
+  main_log:
+    filename: /conf/appdaemon.log
+    log_generations: 3
+    log_size: 1000000

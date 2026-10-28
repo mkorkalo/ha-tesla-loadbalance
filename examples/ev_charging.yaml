@@ -1,0 +1,212 @@
+# Home Assistant package for ha-tesla-loadbalance.
+# Copy to homeassistant/packages/ev_charging.yaml and edit. That copy is never
+# committed. Home Assistant must load packages -- add this to
+# data/homeassistant/configuration.yaml:
+#
+#   homeassistant:
+#     packages: !include_dir_named packages
+#
+# Per car, replace the prefix (model3 / modely) and the TeslaMate car number in
+# the MQTT topics (teslamate/cars/1/..., teslamate/cars/2/...). The prefix must
+# match `prefix:` in apps.yaml. Entity ids come from the names: "Model3 Battery
+# Level" becomes sensor.model3_battery_level.
+#
+# One car: delete every block marked "car 2".
+
+# --- limits shared by all cars -------------------------------------------
+input_number:
+  # `initial:` is deliberate for these two: after every restart they come
+  # back to the value written here, so a stray slider drag cannot persist.
+  ev_house_max_current:
+    name: "House max current per phase"
+    min: 5
+    max: 63
+    step: 1
+    unit_of_measurement: A
+    icon: mdi:current-ac
+    initial: 25          # your main fuse rating in amps (e.g. 25 for 3x25 A)
+  ev_shared_max_current:
+    name: "EV circuit max current"
+    min: 6
+    max: 32
+    step: 1
+    unit_of_measurement: A
+    icon: mdi:ev-station
+    initial: 16          # breaker rating of the circuit the cars charge from
+
+  # --- car 1 ---
+  model3_desired_charge_amps:
+    name: Model3 desired charge amps
+    min: 5
+    max: 16
+    step: 1
+    unit_of_measurement: A
+    icon: mdi:current-ac
+    initial: 16
+  model3_charge_limit:   # no `initial:` -- synced from the car
+    name: Model3 charge limit
+    min: 50
+    max: 100
+    step: 5
+    unit_of_measurement: "%"
+    icon: mdi:battery-charging-80
+
+  # --- car 2 ---
+  modely_desired_charge_amps:
+    name: Modely desired charge amps
+    min: 5
+    max: 16
+    step: 1
+    unit_of_measurement: A
+    icon: mdi:current-ac
+    initial: 16
+  modely_charge_limit:
+    name: Modely charge limit
+    min: 50
+    max: 100
+    step: 5
+    unit_of_measurement: "%"
+    icon: mdi:battery-charging-80
+
+input_button:
+  reschedule_model3_charge:            # car 1
+    name: Reschedule Model3 charge
+    icon: mdi:calendar-refresh
+  reschedule_modely_charge:            # car 2
+    name: Reschedule Modely charge
+    icon: mdi:calendar-refresh
+
+# --- car data from TeslaMate (via MQTT) ------------------------------------
+mqtt:
+  binary_sensor:
+    - name: "Model3 Plugged In"        # car 1
+      unique_id: model3_plugged_in
+      state_topic: "teslamate/cars/1/plugged_in"
+      payload_on: "true"
+      payload_off: "false"
+      device_class: plug
+    - name: "Modely Plugged In"        # car 2
+      unique_id: modely_plugged_in
+      state_topic: "teslamate/cars/2/plugged_in"
+      payload_on: "true"
+      payload_off: "false"
+      device_class: plug
+
+  sensor:
+    # --- car 1 ---
+    - name: "Model3 Battery Level"
+      unique_id: model3_battery_level
+      state_topic: "teslamate/cars/1/battery_level"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+    - name: "Model3 Charging State"
+      unique_id: model3_charging_state
+      state_topic: "teslamate/cars/1/charging_state"
+    - name: "Model3 Charger Actual Current"
+      unique_id: model3_charger_actual_current
+      state_topic: "teslamate/cars/1/charger_actual_current"
+      unit_of_measurement: "A"
+      device_class: current
+      state_class: measurement
+    - name: "Model3 Charge Current Request Max"
+      unique_id: model3_charge_current_request_max
+      state_topic: "teslamate/cars/1/charge_current_request_max"
+      unit_of_measurement: "A"
+    - name: "Model3 Charge Limit SOC"
+      unique_id: model3_charge_limit_soc
+      state_topic: "teslamate/cars/1/charge_limit_soc"
+      unit_of_measurement: "%"
+    - name: "Model3 State"
+      unique_id: model3_state
+      state_topic: "teslamate/cars/1/state"
+    - name: "Model3 Outside Temp"
+      unique_id: model3_outside_temp
+      state_topic: "teslamate/cars/1/outside_temp"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state_class: measurement
+
+    # --- car 2 ---
+    - name: "Modely Battery Level"
+      unique_id: modely_battery_level
+      state_topic: "teslamate/cars/2/battery_level"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+    - name: "Modely Charging State"
+      unique_id: modely_charging_state
+      state_topic: "teslamate/cars/2/charging_state"
+    - name: "Modely Charger Actual Current"
+      unique_id: modely_charger_actual_current
+      state_topic: "teslamate/cars/2/charger_actual_current"
+      unit_of_measurement: "A"
+      device_class: current
+      state_class: measurement
+    - name: "Modely Charge Current Request Max"
+      unique_id: modely_charge_current_request_max
+      state_topic: "teslamate/cars/2/charge_current_request_max"
+      unit_of_measurement: "A"
+    - name: "Modely Charge Limit SOC"
+      unique_id: modely_charge_limit_soc
+      state_topic: "teslamate/cars/2/charge_limit_soc"
+      unit_of_measurement: "%"
+    - name: "Modely State"
+      unique_id: modely_state
+      state_topic: "teslamate/cars/2/state"
+    - name: "Modely Outside Temp"
+      unique_id: modely_outside_temp
+      state_topic: "teslamate/cars/2/outside_temp"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      state_class: measurement
+
+    # --- house energy meter, OPTION A: Shelly 3EM (Gen1) over MQTT ---------
+    # Fastest updates. Enable MQTT on the Shelly (its web page -> Internet &
+    # Security -> Advanced -> MQTT, server = this machine's IP:1883), replace
+    # "shellyem3-XXXXXXXXXXXX" with its device id, and uncomment.
+    # OPTION B: a Shelly Pro 3EM added via the Shelly integration already
+    # gives phase current sensors -- use those in apps.yaml and skip this.
+    #
+    # - name: House Phase A Current
+    #   unique_id: house_phase_a_current
+    #   state_topic: shellies/shellyem3-XXXXXXXXXXXX/emeter/0/current
+    #   unit_of_measurement: A
+    #   device_class: current
+    #   state_class: measurement
+    # - name: House Phase B Current
+    #   unique_id: house_phase_b_current
+    #   state_topic: shellies/shellyem3-XXXXXXXXXXXX/emeter/1/current
+    #   unit_of_measurement: A
+    #   device_class: current
+    #   state_class: measurement
+    # - name: House Phase C Current
+    #   unique_id: house_phase_c_current
+    #   state_topic: shellies/shellyem3-XXXXXXXXXXXX/emeter/2/current
+    #   unit_of_measurement: A
+    #   device_class: current
+    #   state_class: measurement
+
+# --- alert if the controller stops ------------------------------------------
+automation:
+  - id: ev_balancer_watchdog
+    alias: EV charge balancer watchdog
+    description: >-
+      sensor.ev_charge_allocation is rewritten every second by AppDaemon. If it
+      goes stale, NOTHING is limiting current -- the cars keep charging at
+      whatever was last commanded.
+    triggers:
+      - trigger: template
+        value_template: >-
+          {% set s = states.sensor.ev_charge_allocation %}
+          {{ s is not none and (now() - s.last_reported).total_seconds() > 300 }}
+    actions:
+      - action: persistent_notification.create
+        data:
+          title: EV charge balancer is not running
+          notification_id: ev_balancer_watchdog
+          message: >-
+            sensor.ev_charge_allocation has not updated for over 5 minutes.
+            Check AppDaemon: docker compose logs --tail 50 appdaemon.
+            Until it is back, current limiting is NOT active.
+    mode: single
